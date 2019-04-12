@@ -1,0 +1,6 @@
+ca_crt: "{{ vault_ca_crt }}" 
+ca_key: "{{ vault_ca_key }}" 
+client_user_crt: "{{ vault_client_user_crt }}" 
+client_user_key: "{{ vault_client_user_key }}" 
+node_crt: "{{ vault_node_crt }}"
+node_key: "{{ vault_node_key }}"
