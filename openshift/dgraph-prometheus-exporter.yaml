@@ -1,0 +1,188 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: dgraph-prometheus-exporter
+  annotations:
+    description: "Prometheus Exporter for Dgraph"
+    openshift.io/display-name: 'Prometheus Dgraph Exporter'
+    version: 0.1.0
+    tags: dgraph,prometheus,thoth,ai-stacks
+    template.openshift.io/documentation-url: https://github.com/Thoth-Station/
+    template.openshift.io/long-description: >
+      This is an OpenShift Template to deploy an aggregating Prometheus exporter for 
+      Dgraph's Zeros and Alphas
+    template.openshift.io/provider-display-name: "Red Hat, Inc."
+  labels:
+    template: dgraph-prometheus-exporter
+    app: dgraph
+    component: prometheus-exporter
+
+objects:
+  # create a set of services, so that we can reach each http port from within
+  # the same namespace via its hostname
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      labels:
+        app: dgraph
+        component: prometheus-exporter
+      name: prometheus-exporter-alpha-0
+    spec:
+      ports:
+      - name: 8080-8080
+        port: 8080
+        protocol: TCP
+        targetPort: 8080
+      selector:
+        statefulset.kubernetes.io/pod-name: dgraph-alpha-0
+      sessionAffinity: None
+      type: ClusterIP
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      labels:
+        app: graph
+        component: prometheus-exporter
+      name: prometheus-exporter-alpha-1
+    spec:
+      ports:
+      - name: 8080-8080
+        port: 8080
+        protocol: TCP
+        targetPort: 8080
+      selector:
+        statefulset.kubernetes.io/pod-name: dgraph-alpha-1
+      sessionAffinity: None
+      type: ClusterIP
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      labels:
+        app: dgraph
+        component: prometheus-exporter
+      name: prometheus-exporter-alpha-2
+    spec:
+      ports:
+      - name: 8080-8080
+        port: 8080
+        protocol: TCP
+        targetPort: 8080
+      selector:
+        statefulset.kubernetes.io/pod-name: dgraph-alpha-2
+      sessionAffinity: None
+      type: ClusterIP
+
+  # Create the aggregating Prometheus exporter himsefl!
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      labels:
+        app: dgraph
+        component: prometheus-aggregate-exporter
+      name: prometheus-aggregate-exporter
+    spec:
+      ports:
+      - name: 8080-8080
+        port: 8080
+        protocol: TCP
+        targetPort: 8080
+      selector:
+        app: dgraph
+        component: prometheus-aggregate-exporter
+      sessionAffinity: None
+      type: ClusterIP
+
+  - kind: Route
+    apiVersion: route.openshift.io/v1
+    metadata:
+      labels:
+        app: dgraph
+        component: prometheus-aggregate-exporter
+      name: prometheus-aggregate-exporter
+    spec:
+      port:
+        targetPort: 8080-8080
+      to:
+        kind: Service
+        name: prometheus-aggregate-exporter
+        weight: 100
+      wildcardPolicy: None
+
+  - kind: DeploymentConfig
+    apiVersion: apps.openshift.io/v1
+    metadata:
+      labels:
+        app: dgraph
+        component: prometheus-aggregate-exporter
+      name: prometheus-aggregate-exporter
+    spec:
+      replicas: 1
+      revisionHistoryLimit: 2
+      selector:
+        app: dgraph
+        component: prometheus-aggregate-exporter
+      strategy:
+        resources: {}
+        rollingParams:
+          intervalSeconds: 1
+          maxSurge: 25%
+          maxUnavailable: 25%
+          timeoutSeconds: 600
+          updatePeriodSeconds: 1
+        type: Rolling
+      template:
+        metadata:
+          labels:
+            app: dgraph
+            component: prometheus-aggregate-exporter
+        spec:
+          containers:
+            - name: aggregate-exporter
+              env:
+              - name: SERVER_BIND
+                value: "0.0.0.0:8080"
+              - name: TARGETS
+                value: "https://prometheus-exporter-alpha-0.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-1.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-2.thoth-test-core.svc:8080/debug/prometheus_metrics"
+              - name: INSECURE_SKIP_VERIFY
+                value: "True"
+              - name: VERBOSE
+                value: "True"
+              image: aggregate-exporter
+              resources:
+                limits:
+                  cpu: 250m
+                  memory: 512Mi
+                requests:
+                  cpu: 250m
+                  memory: 128Mi
+      test: false
+      triggers:
+        - imageChangeParams:
+            automatic: true
+            containerNames:
+              - aggregate-exporter
+            from:
+              kind: ImageStreamTag
+              name: aggregate-exporter:latest
+              namespace: thoth-test-core
+          type: ImageChange
+        - type: ConfigChange
+
+  - kind: ImageStream
+    apiVersion: image.openshift.io/v1
+    metadata:
+      labels:
+        app: dgraph
+        component: prometheus-aggregate-exporter
+      name: aggregate-exporter
+    spec:
+      lookupPolicy:
+        local: true
+      tags:
+      - name: latest
+        from:
+          kind: DockerImage
+          name: quay.io/goern/aggregate-exporter-f30:v2.0.1-1
+        importPolicy: {}        
+        referencePolicy:
+          type: Source
