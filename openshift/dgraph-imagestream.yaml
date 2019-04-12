@@ -1,0 +1,26 @@
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+metadata:
+  name: dgraph
+spec:
+  lookupPolicy:
+    local: true
+  tags:
+  - name: latest
+    from:
+      kind: ImageStreamImage
+      name: dgraph@sha256:d5844fde4e788dfddb4d1ac5a24cd90e33af250d442de024867981d25ccbb9c1
+    referencePolicy:
+      type: Local
+  - name: v1.0.13
+    from:
+      kind: DockerImage
+      name: docker.io/dgraph/dgraph:v1.0.13
+    referencePolicy:
+      type: Local
+  - name: v1.0.14-rc2
+    from:
+      kind: DockerImage
+      name: docker.io/dgraph/dgraph:v1.0.14-rc2
+    referencePolicy:
+      type: Local
