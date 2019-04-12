@@ -1,0 +1,38 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dgraph-ratel-public
+  labels:
+    app: dgraph-ratel
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: ratel-http
+  selector:
+    app: dgraph-ratel
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dgraph-ratel
+  labels:
+    app: dgraph-ratel
+spec:
+  selector:
+    matchLabels:
+      app: dgraph-ratel
+  template:
+    metadata:
+      labels:
+        app: dgraph-ratel
+    spec:
+      containers:
+      - name: ratel
+        image: dgraph
+        ports:
+        - containerPort: 8000
+        command:
+          - dgraph-ratel
