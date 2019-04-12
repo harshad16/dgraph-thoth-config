@@ -1,0 +1,239 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: dgraph-alpha-deployment
+  annotations:
+    description: "Dgraph Alpha"
+    openshift.io/display-name: 'Dgraph Alpha'
+    version: 0.1.0
+    tags: dgraph,alpha,thoth,ai-stacks
+    template.openshift.io/documentation-url: https://github.com/Thoth-Station/
+    template.openshift.io/long-description: "This is an OpenShift Template to deploy Dgraph Alphas"
+    template.openshift.io/provider-display-name: "Red Hat, Inc."
+  labels:
+    template: dgraph-alpha-deployment
+    app: dgraph
+    component: alpha
+
+objects:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: dgraph-alpha-public
+      labels:
+        app: dgraph
+        component: alpha
+    spec:
+      type: LoadBalancer
+      ports:
+        - port: 8080
+          targetPort: 8080
+          name: alpha-http
+        - port: 9080
+          targetPort: 9080
+          name: alpha-grpc
+      selector:
+        app: dgraph
+        component: alpha
+
+  # This service is created in-order to debug & profile a specific alpha.
+  # You can create one for each alpha that you need to profile.
+  # For a more general HTTP APIs use the above service instead.
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: dgraph-alpha-0-http-public
+      labels:
+        app: dgraph-alpha
+    spec:
+      type: LoadBalancer
+      ports:
+        - port: 8080
+          targetPort: 8080
+          name: alpha-http
+      selector:
+        statefulset.kubernetes.io/pod-name: dgraph-alpha-0
+
+  # This is a headless service which is necessary for discovery for a dgraph-alpha StatefulSet.
+  # https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/#creating-a-statefulset
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: dgraph-alpha
+      labels:
+        app: dgraph
+        component: alpha
+    spec:
+      ports:
+      - port: 7080
+        targetPort: 7080
+        name: alpha-grpc-int
+      clusterIP: None
+      selector:
+        app: dgraph
+        component: alpha
+
+  # This StatefulSet runs 3 replicas of Dgraph Alpha.
+  - apiVersion: apps/v1
+    kind: StatefulSet
+    metadata:
+      name: dgraph-alpha
+      labels:
+        app: dgraph
+        component: alpha
+    spec:
+      serviceName: "dgraph-alpha"
+      replicas: 3
+      selector:
+        matchLabels:
+          app: dgraph
+          component: alpha
+      template:
+        metadata:
+          labels:
+            app: dgraph
+            component: alpha
+        spec:
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    labelSelector:
+                      matchExpressions:
+                        - key: app
+                          operator: In
+                          values:
+                            - dgraph-alpha
+                    topologyKey: kubernetes.io/hostname
+          # Initializing the Alphas:
+          #
+          # You may want to initialize the Alphas with data before starting, e.g.
+          # with data from the Dgraph Bulk Loader: https://docs.dgraph.io/deploy/#bulk-loader.
+          # You can accomplish by uncommenting this initContainers config. This
+          # starts a container with the same /dgraph volume used by Alpha and runs
+          # before Alpha starts.
+          #
+          # You can copy your local p directory to the pod's /dgraph/p directory
+          # with this command:
+          #
+          #    kubectl cp path/to/p dgraph-alpha-0:/dgraph/ -c init-alpha
+          #    (repeat for each alpha pod)
+          #
+          # When you're finished initializing each Alpha data directory, you can signal
+          # it to terminate successfully by creating a /dgraph/doneinit file:
+          #
+          #    kubectl exec dgraph-alpha-0 -c init-alpha touch /dgraph/doneinit
+          #
+          # Note that pod restarts cause re-execution of Init Containers. Since
+          # /dgraph is persisted across pod restarts, the Init Container will exit
+          # automatically when /dgraph/doneinit is present and proceed with starting
+          # the Alpha process.
+          #
+          # Tip: StatefulSet pods can start in parallel by configuring
+          # .spec.podManagementPolicy to Parallel:
+          #
+          #     https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#deployment-and-scaling-guarantees
+          #
+          # initContainers:
+          #   - name: init-alpha
+          #     image: dgraph/dgraph:latest
+          #     command:
+          #       - bash
+          #       - "-c"
+          #       - |
+          #         echo "Write to /dgraph/doneinit when ready."
+          #         until [ -f /dgraph/doneinit ]; do sleep 2; done
+          #     volumeMounts:
+          #       - name: datadir
+          #         mountPath: /dgraph
+          containers:
+            - name: alpha
+              image: dgraph
+              imagePullPolicy: IfNotPresent
+              ports:
+                - containerPort: 7080
+                  name: alpha-grpc-int
+                - containerPort: 8080
+                  name: alpha-http
+                - containerPort: 9080
+                  name: alpha-grpc
+              volumeMounts:
+                - name: datadir
+                  mountPath: /dgraph
+                - name: dgraph-tls
+                  mountPath: /var/run/secrets/dgraph
+                  readOnly: true
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: OPS_WHITELIST
+                  value: "172.54.0.0:172.54.255.255"
+              command:
+                - bash
+                - "-c"
+                - |
+                  set -ex
+                  dgraph alpha --my=$(hostname -f):7080 --lru_mb 7680 --zero dgraph-zero-0.dgraph-zero.${POD_NAMESPACE}.svc.cluster.local:5080 --tls_dir /var/run/secrets/dgraph --whitelist ${OPS_WHITELIST}
+              resources:
+                limits:
+                  cpu: 4000m
+                  memory: 8Gi
+                requests:
+                  cpu: 4000m
+                  memory: 8Gi
+          terminationGracePeriodSeconds: 600
+          volumes:
+            - name: datadir
+              persistentVolumeClaim:
+                claimName: datadir
+            - name: dgraph-tls
+              secret:
+                defaultMode: 420
+                secretName: dgraph-tls
+      updateStrategy:
+        type: RollingUpdate
+      volumeClaimTemplates:
+        - metadata:
+            name: datadir
+            annotations:
+              volume.alpha.kubernetes.io/storage-class: anything # ceph-dyn-thoth-paas-prod-psi
+              # volume.beta.kubernetes.io/storage-provisioner: kubernetes.io/rbd
+          spec:
+            accessModes:
+              - "ReadWriteOnce"
+            resources:
+              requests:
+                storage: 5Gi
+
+  - apiVersion: image.openshift.io/v1
+    kind: ImageStream
+    metadata:
+      name: dgraph
+    spec:
+      lookupPolicy:
+        local: true
+      tags:
+        - name: latest
+          from:
+            kind: ImageStreamImage
+            name: dgraph@sha256:d5844fde4e788dfddb4d1ac5a24cd90e33af250d442de024867981d25ccbb9c1
+          importPolicy: {}        
+          referencePolicy:
+            type: Local
+        - name: v1.0.13
+          from:
+            kind: DockerImage
+            name: docker.io/dgraph/dgraph:v1.0.13
+          importPolicy: {}
+          referencePolicy:
+            type: Local
+        - name: v1.0.14-rc2
+          from:
+            kind: DockerImage
+            name: docker.io/dgraph/dgraph:v1.0.14-rc2
+          importPolicy: {}
+          referencePolicy:
+            type: Local
