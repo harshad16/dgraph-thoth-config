@@ -29,12 +29,12 @@ objects:
       name: prometheus-exporter-alpha-0
     spec:
       ports:
-      - name: 8080-8080
+      - name: metrics
         port: 8080
         protocol: TCP
         targetPort: 8080
       selector:
-        statefulset.kubernetes.io/pod-name: dgraph-alpha-0
+        statefulset.kubernetes.io/pod-name: alpha-0
       sessionAffinity: None
       type: ClusterIP
   - kind: Service
@@ -46,12 +46,12 @@ objects:
       name: prometheus-exporter-alpha-1
     spec:
       ports:
-      - name: 8080-8080
+      - name: metrics
         port: 8080
         protocol: TCP
         targetPort: 8080
       selector:
-        statefulset.kubernetes.io/pod-name: dgraph-alpha-1
+        statefulset.kubernetes.io/pod-name: alpha-1
       sessionAffinity: None
       type: ClusterIP
   - kind: Service
@@ -63,14 +63,66 @@ objects:
       name: prometheus-exporter-alpha-2
     spec:
       ports:
-      - name: 8080-8080
+      - name: metrics
         port: 8080
         protocol: TCP
         targetPort: 8080
       selector:
-        statefulset.kubernetes.io/pod-name: dgraph-alpha-2
+        statefulset.kubernetes.io/pod-name: alpha-2
       sessionAffinity: None
       type: ClusterIP
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      labels:
+        app: dgraph
+        component: prometheus-exporter
+      name: prometheus-exporter-zero-0
+    spec:
+      ports:
+      - name: metrics
+        port: 8080
+        protocol: TCP
+        targetPort: 6080
+      selector:
+        statefulset.kubernetes.io/pod-name: zero-0
+      sessionAffinity: None
+      type: ClusterIP
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      labels:
+        app: graph
+        component: prometheus-exporter
+      name: prometheus-exporter-zero-1
+    spec:
+      ports:
+      - name: metrics
+        port: 8080
+        protocol: TCP
+        targetPort: 6080
+      selector:
+        statefulset.kubernetes.io/pod-name: zero-1
+      sessionAffinity: None
+      type: ClusterIP
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      labels:
+        app: dgraph
+        component: prometheus-exporter
+      name: prometheus-exporter-zero-2
+    spec:
+      ports:
+      - name: metrics
+        port: 8080
+        protocol: TCP
+        targetPort: 6080
+      selector:
+        statefulset.kubernetes.io/pod-name: zero-2
+      sessionAffinity: None
+      type: ClusterIP
+
 
   # Create the aggregating Prometheus exporter himsefl!
   - kind: Service
@@ -142,7 +194,7 @@ objects:
               - name: SERVER_BIND
                 value: "0.0.0.0:8080"
               - name: TARGETS
-                value: "https://prometheus-exporter-alpha-0.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-1.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-2.thoth-test-core.svc:8080/debug/prometheus_metrics"
+                value: "http://prometheus-exporter-zero-0.thoth-test-core.svc:8080/debug/prometheus_metrics,http://prometheus-exporter-zero-1.thoth-test-core.svc:8080/debug/prometheus_metrics,http://prometheus-exporter-zero-2.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-0.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-1.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-2.thoth-test-core.svc:8080/debug/prometheus_metrics"
               - name: INSECURE_SKIP_VERIFY
                 value: "True"
               - name: VERBOSE
