@@ -5,7 +5,7 @@ metadata:
   annotations:
     description: "Dgraph Zero"
     openshift.io/display-name: "Dgraph Zero"
-    version: 0.1.0
+    version: 0.2.0
     tags: dgraph,zero,thoth,ai-stacks
     template.openshift.io/documentation-url: https://github.com/Thoth-Station/
     template.openshift.io/long-description: "This is an OpenShift Template to deploy Dgraph Zeros"
@@ -14,6 +14,26 @@ metadata:
     template: dgraph-zero-deployment
     app: dgraph
     component: zero
+
+parameters:
+  - description: "Hostname to be used for exposing the REST API"
+    displayName: "Hostname"
+    required: true
+    name: HOST_NAME
+    value: "zero-rest-thoth-dgraph-stage.cloud.paas.psi.redhat.com"
+
+  - description: "StorageClass to be used"
+    displayName: "StorageClass"
+    required: true
+    name: STORAGE_CLASS_NAME
+    value: "ceph-dyn-thoth-paas-prod-psi"
+
+  - description: "Storage size to be used (dont forget the Gi)"
+    displayName: "Storage size"
+    required: true
+    name: STORAGE_SIZE
+    value: "5Gi"
+
 
 objects:
   - apiVersion: v1
@@ -137,8 +157,8 @@ objects:
               - "ReadWriteOnce"
             resources:
               requests:
-                storage: 5Gi
-#            storageClassName: ceph-dyn-thoth-paas-prod-psi
+                storage: "${STORAGE_SIZE}"
+            storageClassName: "${STORAGE_CLASS_NAME}"
 
   - apiVersion: route.openshift.io/v1
     kind: Route
@@ -148,7 +168,7 @@ objects:
         component: zero
       name: zero-rest
     spec:
-      host: zero-rest-thoth-test-core.cloud.paas.psi.redhat.com
+      host: "${HOST_NAME}"
       port:
         targetPort: zero-rest
       to:
