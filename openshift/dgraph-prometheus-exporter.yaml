@@ -191,14 +191,18 @@ objects:
           containers:
             - name: aggregate-exporter
               env:
-              - name: SERVER_BIND
-                value: "0.0.0.0:8080"
-              - name: TARGETS
-                value: "http://prometheus-exporter-zero-0.thoth-test-core.svc:8080/debug/prometheus_metrics,http://prometheus-exporter-zero-1.thoth-test-core.svc:8080/debug/prometheus_metrics,http://prometheus-exporter-zero-2.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-0.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-1.thoth-test-core.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-2.thoth-test-core.svc:8080/debug/prometheus_metrics"
-              - name: INSECURE_SKIP_VERIFY
-                value: "True"
-              - name: VERBOSE
-                value: "True"
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: SERVER_BIND
+                  value: "0.0.0.0:8080"
+                - name: TARGETS
+                  value: "http://prometheus-exporter-zero-0.thoth-dgraph-stage.svc:8080/debug/prometheus_metrics,http://prometheus-exporter-zero-1.thoth-dgraph-stage.svc:8080/debug/prometheus_metrics,http://prometheus-exporter-zero-2.thoth-dgraph-stage.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-0.thoth-dgraph-stage.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-1.thoth-dgraph-stage.svc:8080/debug/prometheus_metrics,https://prometheus-exporter-alpha-2.thoth-dgraph-stage.svc:8080/debug/prometheus_metrics"
+                - name: INSECURE_SKIP_VERIFY
+                  value: "True"
+                - name: VERBOSE
+                  value: "True"
               image: aggregate-exporter
               resources:
                 limits:
@@ -216,7 +220,6 @@ objects:
             from:
               kind: ImageStreamTag
               name: aggregate-exporter:latest
-              namespace: thoth-test-core
           type: ImageChange
         - type: ConfigChange
 

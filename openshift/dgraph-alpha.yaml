@@ -5,7 +5,7 @@ metadata:
   annotations:
     description: "Dgraph Alpha"
     openshift.io/display-name: 'Dgraph Alpha'
-    version: 0.1.0
+    version: 0.2.0
     tags: dgraph,alpha,thoth,ai-stacks
     template.openshift.io/documentation-url: https://github.com/Thoth-Station/
     template.openshift.io/long-description: "This is an OpenShift Template to deploy Dgraph Alphas"
@@ -14,6 +14,31 @@ metadata:
     template: dgraph-alpha-deployment
     app: dgraph
     component: alpha
+
+parameters:
+  - description: "Hostname to be used for exposing the REST API"
+    displayName: "REST Hostname"
+    required: true
+    name: HOST_NAME_REST
+    value: "alpha-rest-thoth-dgraph-stage.cloud.paas.psi.redhat.com"
+
+  - description: "Hostname to be used for exposing the gRPC API"
+    displayName: "gRPC Hostname"
+    required: true
+    name: HOST_NAME_GRPC
+    value: "alpha-grpc-thoth-dgraph-stage.cloud.paas.psi.redhat.com"
+
+  - description: "StorageClass to be used"
+    displayName: "StorageClass"
+    required: true
+    name: STORAGE_CLASS_NAME
+    value: "ceph-dyn-thoth-paas-prod-psi"
+
+  - description: "Storage size to be used (dont forget the Gi)"
+    displayName: "Storage size"
+    required: true
+    name: STORAGE_SIZE
+    value: "5Gi"
 
 objects:
   - apiVersion: v1
@@ -35,25 +60,6 @@ objects:
       selector:
         app: dgraph
         component: alpha
-
-  # This service is created in-order to debug & profile a specific alpha.
-  # You can create one for each alpha that you need to profile.
-  # For a more general HTTP APIs use the above service instead.
-  - apiVersion: v1
-    kind: Service
-    metadata:
-      name: alpha-0-rest-public
-      labels:
-        app: dgraph
-        component: alpha
-    spec:
-      type: LoadBalancer
-      ports:
-        - port: 8080
-          targetPort: 8080
-          name: alpha-rest
-      selector:
-        statefulset.kubernetes.io/pod-name: alpha-0
 
   # This is a headless service which is necessary for discovery for a dgraph-alpha StatefulSet.
   # https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/#creating-a-statefulset
@@ -180,12 +186,12 @@ objects:
                   dgraph alpha --my=$(hostname -f):7080 --lru_mb 7680 --zero zero-0.zero.${POD_NAMESPACE}.svc.cluster.local:5080 --tls_dir /var/run/secrets/dgraph --whitelist ${ADMIN_WHITELIST_IPS}
               resources:
                 limits:
-                  cpu: 4000m
+                  cpu: 4
                   memory: 8Gi
                 requests:
-                  cpu: 4000m
+                  cpu: 4
                   memory: 8Gi
-          terminationGracePeriodSeconds: 600
+          terminationGracePeriodSeconds: 60
           volumes:
             - name: datadir
               persistentVolumeClaim:
@@ -198,38 +204,16 @@ objects:
         type: RollingUpdate
       volumeClaimTemplates:
         - metadata:
-            name: datadir
-            annotations:
-#              volume.alpha.kubernetes.io/storage-class: ceph-dyn-thoth-paas-prod-psi
-#              volume.beta.kubernetes.io/storage-provisioner: kubernetes.io/rbd
+            name: "datadir"
             finalizers:
-              - kubernetes.io/pvc-protection
+              - "kubernetes.io/pvc-protection"
           spec:
             accessModes:
               - "ReadWriteOnce"
             resources:
               requests:
-                storage: 5Gi
-#            storageClassName: ceph-dyn-thoth-paas-prod-psi
-
-  - apiVersion: route.openshift.io/v1
-    kind: Route
-    metadata:
-      labels:
-        app: dgraph
-        component: alpha
-      name: alpha-0-rest
-    spec:
-      host: alpha-0-thoth-test-core.cloud.paas.psi.redhat.com
-      port:
-        targetPort: alpha-rest
-      tls:
-        termination: passthrough
-      to:
-        kind: Service
-        name: alpha-0-rest-public
-        weight: 100
-      wildcardPolicy: None
+                storage: "${STORAGE_SIZE}"
+            storageClassName: "${STORAGE_CLASS_NAME}"
 
   - apiVersion: route.openshift.io/v1
     kind: Route
@@ -239,7 +223,7 @@ objects:
         component: alpha
       name: alpha-rest
     spec:
-      host: alpha-thoth-test-core.cloud.paas.psi.redhat.com
+      host: "${HOST_NAME_REST}"
       port:
         targetPort: alpha-rest
       tls:
@@ -258,7 +242,7 @@ objects:
         component: alpha
       name: alpha-grpc
     spec:
-      host: alpha-grpc-thoth-test-core.cloud.paas.psi.redhat.com
+      host: "${HOST_NAME_GRPC}"
       port:
         targetPort: alpha-grpc
       tls:
