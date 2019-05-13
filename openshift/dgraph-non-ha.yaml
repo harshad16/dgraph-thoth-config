@@ -1,0 +1,266 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: dgraph-non-ha-deployment
+  annotations:
+    description: "Dgraph Zero non-HA deployment"
+    openshift.io/display-name: "Dgraph"
+    version: 0.2.0
+    tags: dgraph,zero,alpha,thoth
+    template.openshift.io/documentation-url: https://github.com/Thoth-Station/
+    template.openshift.io/long-description: "This is an OpenShift Template to deploy Dgraph in an non-HA configuration"
+    template.openshift.io/provider-display-name: "Red Hat, Inc."
+  labels:
+    template: dgraph-non-ha-deployment
+    app: dgraph
+
+parameters:
+  - description: "Hostname to be used for exposing Zero's REST API"
+    displayName: "Zero Hostname"
+    required: true
+    name: ZERO_HOST_NAME
+    value: "zero-rest-thoth-test-core.cloud.paas.psi.redhat.com"
+ 
+  - description: "Hostname to be used for exposing Alpha's REST API"
+    displayName: "Alpha REST Hostname"
+    required: true
+    name: ALPHA_HOST_NAME_REST
+    value: "alpha-rest-thoth-test-core.cloud.paas.psi.redhat.com"
+
+  - description: "Hostname to be used for exposing Alpha's gRPC API"
+    displayName: "Alpha gRPC Hostname"
+    required: true
+    name: ALPHA_HOST_NAME_GRPC
+    value: "alpha-grpc-thoth-test-core.cloud.paas.psi.redhat.com"
+
+  - description: "StorageClass to be used"
+    displayName: "StorageClass"
+    required: true
+    name: STORAGE_CLASS_NAME
+    value: "ceph-dyn-thoth-paas-prod-psi"
+
+  - description: "Storage size to be used (dont forget the Gi)"
+    displayName: "Storage size"
+    required: true
+    name: STORAGE_SIZE
+    value: "5Gi"
+
+
+objects:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: zero-public
+      labels:
+        app: dgraph
+        component: zero
+    spec:
+      type: LoadBalancer
+      ports:
+        - port: 5080
+          targetPort: 5080
+          name: zero-grpc
+        - port: 6080
+          targetPort: 6080
+          name: zero-rest
+      selector:
+        app: dgraph
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: zero
+      labels:
+        app: dgraph
+        component: zero
+    spec:
+      ports:
+        - port: 5080
+          targetPort: 5080
+          name: zero-grpc
+      clusterIP: None
+      selector:
+        app: dgraph
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: alpha-public
+      labels:
+        app: dgraph
+        component: alpha
+    spec:
+      type: LoadBalancer
+      ports:
+        - port: 8080
+          targetPort: 8080
+          name: alpha-rest
+        - port: 9080
+          targetPort: 9080
+          name: alpha-grpc
+      selector:
+        app: dgraph
+
+  - apiVersion: apps.openshift.io/v1
+    kind: DeploymentConfig
+    metadata:
+      name: dgraph
+      labels:
+        app: dgraph
+    spec:
+      replicas: 1
+      revisionHistoryLimit: 2
+      selector:
+        app: dgraph
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            app: dgraph
+            component: prometheus-aggregate-exporter
+        spec:
+          containers:
+            - name: zero
+              image: dgraph
+              imagePullPolicy: IfNotPresent
+              ports:
+                - containerPort: 5080
+                  name: zero-grpc
+                - containerPort: 6080
+                  name: zero-rest
+              volumeMounts:
+                - name: datadir
+                  mountPath: /dgraph
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+              command:
+                - bash
+                - "-c"
+                - |
+                  set -ex
+                  dgraph zero --my=$(hostname -f):5080
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 1Gi
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+            - name: alpha
+              image: dgraph
+              imagePullPolicy: IfNotPresent
+              ports:
+                - containerPort: 7080
+                  name: alpha-grpc-int
+                - containerPort: 8080
+                  name: alpha-rest
+                - containerPort: 9080
+                  name: alpha-grpc
+              volumeMounts:
+                - name: datadir
+                  mountPath: /dgraph
+                - name: dgraph-tls
+                  mountPath: /var/run/secrets/dgraph
+                  readOnly: true
+              env:
+                - name: ADMIN_WHITELIST_IPS
+                  value: "172.54.0.0:172.54.255.255"
+              command:
+                - bash
+                - "-c"
+                - |
+                  set -ex
+                  dgraph alpha --my=$(hostname -f):7080 --lru_mb 2048 --zero $(hostname -f):5080 --tls_dir /var/run/secrets/dgraph --whitelist ${ADMIN_WHITELIST_IPS}
+              resources:
+                limits:
+                  cpu: 2
+                  memory: 4Gi
+                requests:
+                  cpu: 1
+                  memory: 1Gi
+
+          volumes:
+          - name: datadir
+            persistentVolumeClaim:
+              claimName: datadir
+      volumeClaimTemplates:
+        - metadata:
+            name: datadir
+          spec:
+            accessModes:
+              - "ReadWriteOnce"
+            resources:
+              requests:
+                storage: "${STORAGE_SIZE}"
+            storageClassName: "${STORAGE_CLASS_NAME}"
+      test: false
+      triggers:
+        - type: ImageChange
+          imageChangeParams:
+            automatic: true
+            containerNames:
+              - zero
+              - alpha
+            from:
+              kind: ImageStreamTag
+              name: dgraph:latest
+        - type: ConfigChange
+
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      labels:
+        app: dgraph
+        component: zero
+      name: zero-rest
+    spec:
+      host: "${ZERO_HOST_NAME}"
+      port:
+        targetPort: zero-rest
+      to:
+        kind: Service
+        name: zero-public
+        weight: 100
+      wildcardPolicy: None
+
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      labels:
+        app: dgraph
+        component: alpha
+      name: alpha-rest
+    spec:
+      host: "${ALPHA_HOST_NAME_REST}"
+      port:
+        targetPort: alpha-rest
+      tls:
+        termination: passthrough
+      to:
+        kind: Service
+        name: alpha-public
+        weight: 100
+      wildcardPolicy: None
+
+  - apiVersion: route.openshift.io/v1
+    kind: Route
+    metadata:
+      labels:
+        app: dgraph
+        component: alpha
+      name: alpha-grpc
+    spec:
+      host: "${ALPHA_HOST_NAME_GRPC}"
+      port:
+        targetPort: alpha-grpc
+      tls:
+        termination: passthrough
+      to:
+        kind: Service
+        name: alpha-public
+        weight: 100
+      wildcardPolicy: None
