@@ -56,23 +56,6 @@ objects:
         app: dgraph
         component: zero
 
-  - apiVersion: v1
-    kind: Service
-    metadata:
-      name: zero
-      labels:
-        app: dgraph
-        component: zero
-    spec:
-      ports:
-        - port: 5080
-          targetPort: 5080
-          name: zero-grpc
-      clusterIP: None
-      selector:
-        app: dgraph
-        component: zero
-
   - apiVersion: apps/v1
     kind: StatefulSet
     metadata:
