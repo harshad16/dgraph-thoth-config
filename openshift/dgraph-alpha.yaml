@@ -5,7 +5,7 @@ metadata:
   annotations:
     description: "Dgraph Alpha"
     openshift.io/display-name: 'Dgraph Alpha'
-    version: 0.2.0
+    version: 0.3.0
     tags: dgraph,alpha,thoth,ai-stacks
     template.openshift.io/documentation-url: https://github.com/Thoth-Station/
     template.openshift.io/long-description: "This is an OpenShift Template to deploy Dgraph Alphas"
@@ -90,7 +90,7 @@ objects:
         component: alpha
     spec:
       serviceName: alpha
-      replicas: 3
+      replicas: 4
       selector:
         matchLabels:
           app: dgraph
@@ -183,14 +183,14 @@ objects:
                 - "-c"
                 - |
                   set -ex
-                  dgraph alpha --my=$(hostname -f):7080 --lru_mb 7680 --zero zero-0.zero.${POD_NAMESPACE}.svc.cluster.local:5080 --tls_dir /var/run/secrets/dgraph --whitelist ${ADMIN_WHITELIST_IPS}
+                  dgraph alpha --my=$(hostname -f):7080 --lru_mb 2048 --zero zero-0.zero.${POD_NAMESPACE}.svc.cluster.local:5080 --tls_dir /var/run/secrets/dgraph --whitelist ${ADMIN_WHITELIST_IPS}
               resources:
                 limits:
                   cpu: 4
-                  memory: 8Gi
+                  memory: 6Gi
                 requests:
                   cpu: 4
-                  memory: 8Gi
+                  memory: 6Gi
           terminationGracePeriodSeconds: 60
           volumes:
             - name: datadir

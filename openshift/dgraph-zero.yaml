@@ -90,7 +90,7 @@ objects:
                   topologyKey: kubernetes.io/hostname
           containers:
           - name: zero
-            image: dgraph
+            image: dgraph:v1.0.15
             imagePullPolicy: IfNotPresent
             ports:
               - containerPort: 5080
@@ -121,10 +121,10 @@ objects:
             resources:
               limits:
                 cpu: 1
-                memory: 1024Mi
+                memory: 5Gi
               requests:
                 cpu: 1
-                memory: 1024Mi
+                memory: 5Gi
           terminationGracePeriodSeconds: 60
           volumes:
           - name: datadir
