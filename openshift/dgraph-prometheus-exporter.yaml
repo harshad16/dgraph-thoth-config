@@ -77,6 +77,23 @@ objects:
       labels:
         app: dgraph
         component: prometheus-exporter
+      name: prometheus-exporter-alpha-3
+    spec:
+      ports:
+      - name: metrics
+        port: 8080
+        protocol: TCP
+        targetPort: 8080
+      selector:
+        statefulset.kubernetes.io/pod-name: alpha-3
+      sessionAffinity: None
+      type: ClusterIP
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      labels:
+        app: dgraph
+        component: prometheus-exporter
       name: prometheus-exporter-zero-0
     spec:
       ports:
