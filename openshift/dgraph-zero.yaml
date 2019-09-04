@@ -56,6 +56,25 @@ objects:
         app: dgraph
         component: zero
 
+  # This is a headless service which is necessary for discovery for a dgraph-zero StatefulSet.
+  # https://kubernetes.io/docs/tutorials/stateful-application/basic-stateful-set/#creating-a-statefulset
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: zero
+      labels:
+        app: dgraph
+        component: zero
+    spec:
+      ports:
+      - port: 5080
+        targetPort: 5080
+        name: zero-grpc
+      clusterIP: None
+      selector:
+        app: dgraph
+        component: zero
+
   - apiVersion: apps/v1
     kind: StatefulSet
     metadata:
